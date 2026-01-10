@@ -55,13 +55,14 @@ final class HealthKitManager: ObservableObject {
         statusMessage = nil
 
         let interval = dayInterval(for: date)
+        let sleepInterval = self.sleepInterval(for: date)
         let dispatchGroup = DispatchGroup()
         var aggregatedReadings: [HealthMetricReading] = []
 
         for metric in HealthMetric.allCases {
             dispatchGroup.enter()
             if metric == .sleep {
-                fetchSleepSummary(within: interval) { summary in
+                fetchSleepSummary(within: sleepInterval) { summary in
                     aggregatedReadings.append(
                         HealthMetricReading(
                             type: metric,
@@ -95,9 +96,10 @@ final class HealthKitManager: ObservableObject {
         statusMessage = nil
 
         let interval = dayInterval(for: date)
+        let sleepInterval = self.sleepInterval(for: date)
         var objects: [HKObject] = []
 
-        let sleepSamples = mockSleepSamples(for: interval)
+        let sleepSamples = mockSleepSamples(for: sleepInterval)
         objects.append(contentsOf: sleepSamples)
 
         if let daylightSample = mockQuantitySample(for: .timeInDaylight, on: interval) {
@@ -248,7 +250,10 @@ final class HealthKitManager: ObservableObject {
 
         let hours = Double.random(in: HealthMetric.sleep.mockRange)
         let totalMinutes = hours * 60
-        let startOffset = TimeInterval.random(in: (-12_600.0)...(-7_200.0))
+        
+        // Start sleep between 10:00 PM and 11:30 PM
+        // Since interval.start is 6:00 PM, 4 to 5.5 hours after start.
+        let startOffset = TimeInterval.random(in: 14_400.0...19_800.0)
         let startDate = interval.start.addingTimeInterval(startOffset)
         let metadata = [HKMetadataKeyWasUserEntered: true]
 
@@ -346,6 +351,18 @@ final class HealthKitManager: ObservableObject {
     private func dayInterval(for date: Date) -> DateInterval {
         let start = Calendar.current.startOfDay(for: date)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: start) ?? start
+        return DateInterval(start: start, end: end)
+    }
+
+    private func sleepInterval(for date: Date) -> DateInterval {
+        let calendar = Calendar.current
+        let startOfTargetDay = calendar.startOfDay(for: date)
+        
+        // 6 PM the day before
+        let start = calendar.date(byAdding: .hour, value: -6, to: startOfTargetDay)!
+        // 6 PM the target day
+        let end = calendar.date(byAdding: .hour, value: 18, to: startOfTargetDay)!
+        
         return DateInterval(start: start, end: end)
     }
 }

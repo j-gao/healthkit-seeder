@@ -4,6 +4,8 @@
 
 ## User settings
 xcuserdata/
+DerivedData/
+build.log
 
 ## Obj-C/Swift specific
 *.hmap
@@ -12,6 +14,7 @@ xcuserdata/
 *.ipa
 *.dSYM.zip
 *.dSYM
+*.xcresult
 
 ## Playgrounds
 timeline.xctimeline

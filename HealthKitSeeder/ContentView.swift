@@ -142,8 +142,13 @@ struct ContentView: View {
 
     private var metricsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if let sleepReading = healthKitManager.readings.first(where: { $0.type == .sleep }) {
+                MetricChip(reading: sleepReading)
+            }
+
+            let otherReadings = healthKitManager.readings.filter { $0.type != .sleep }
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
-                ForEach(healthKitManager.readings) { reading in
+                ForEach(otherReadings) { reading in
                     MetricChip(reading: reading)
                 }
             }
@@ -206,7 +211,9 @@ private struct PermissionCard: View {
 }
 
 @available(iOS 17.0, *)
-#Preview {
-    ContentView()
-        .environmentObject(HealthKitManager())
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+            .environmentObject(HealthKitManager())
+    }
 }

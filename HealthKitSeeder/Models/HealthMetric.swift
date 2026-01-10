@@ -166,10 +166,106 @@ enum HealthMetric: String, CaseIterable, Identifiable {
 }
 
 @available(iOS 17.0, *)
+enum SleepStage: String, CaseIterable, Identifiable {
+    case awake
+    case rem
+    case core
+    case deep
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .awake: return "Awake"
+        case .rem: return "REM"
+        case .core: return "Core"
+        case .deep: return "Deep"
+        }
+    }
+
+    var isAsleep: Bool {
+        self != .awake
+    }
+
+    var healthKitValue: Int {
+        switch self {
+        case .awake:
+            return HKCategoryValueSleepAnalysis.awake.rawValue
+        case .rem:
+            return HKCategoryValueSleepAnalysis.asleepREM.rawValue
+        case .core:
+            return HKCategoryValueSleepAnalysis.asleepCore.rawValue
+        case .deep:
+            return HKCategoryValueSleepAnalysis.asleepDeep.rawValue
+        }
+    }
+
+    init?(categoryValue: Int) {
+        switch categoryValue {
+        case HKCategoryValueSleepAnalysis.awake.rawValue,
+             HKCategoryValueSleepAnalysis.inBed.rawValue:
+            self = .awake
+        case HKCategoryValueSleepAnalysis.asleepREM.rawValue:
+            self = .rem
+        case HKCategoryValueSleepAnalysis.asleepDeep.rawValue:
+            self = .deep
+        case HKCategoryValueSleepAnalysis.asleepCore.rawValue,
+             HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue:
+            self = .core
+        default:
+            return nil
+        }
+    }
+
+    static var legendOrder: [SleepStage] {
+        [.deep, .core, .rem, .awake]
+    }
+}
+
+@available(iOS 17.0, *)
+struct SleepStageSegment: Identifiable {
+    let id = UUID()
+    let stage: SleepStage
+    let minutes: Double
+}
+
+@available(iOS 17.0, *)
+struct SleepSummary {
+    let segments: [SleepStageSegment]
+    let startDate: Date
+    let endDate: Date
+
+    var totalMinutes: Double {
+        segments.reduce(0) { $0 + $1.minutes }
+    }
+
+    var stageTotals: [SleepStage: Double] {
+        var totals: [SleepStage: Double] = [:]
+        for segment in segments {
+            totals[segment.stage, default: 0] += segment.minutes
+        }
+        return totals
+    }
+
+    var asleepMinutes: Double {
+        stageTotals.reduce(0) { partial, entry in
+            entry.key.isAsleep ? partial + entry.value : partial
+        }
+    }
+}
+
+@available(iOS 17.0, *)
 struct HealthMetricReading: Identifiable {
     let id = UUID()
     let type: HealthMetric
     let value: Double?
+    let sleepSummary: SleepSummary?
+
+    init(type: HealthMetric, value: Double?, sleepSummary: SleepSummary? = nil) {
+        self.type = type
+        self.value = value
+        self.sleepSummary = sleepSummary
+    }
 
     var displayText: String {
         type.formattedValue(value)

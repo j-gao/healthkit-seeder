@@ -60,9 +60,22 @@ final class HealthKitManager: ObservableObject {
 
         for metric in HealthMetric.allCases {
             dispatchGroup.enter()
-            fetch(metric: metric, within: interval) { value in
-                aggregatedReadings.append(HealthMetricReading(type: metric, value: value))
-                dispatchGroup.leave()
+            if metric == .sleep {
+                fetchSleepSummary(within: interval) { summary in
+                    aggregatedReadings.append(
+                        HealthMetricReading(
+                            type: metric,
+                            value: summary?.asleepMinutes,
+                            sleepSummary: summary
+                        )
+                    )
+                    dispatchGroup.leave()
+                }
+            } else {
+                fetch(metric: metric, within: interval) { value in
+                    aggregatedReadings.append(HealthMetricReading(type: metric, value: value))
+                    dispatchGroup.leave()
+                }
             }
         }
 
@@ -84,9 +97,8 @@ final class HealthKitManager: ObservableObject {
         let interval = dayInterval(for: date)
         var objects: [HKObject] = []
 
-        if let sleepSample = mockSleepSample(for: interval) {
-            objects.append(sleepSample)
-        }
+        let sleepSamples = mockSleepSamples(for: interval)
+        objects.append(contentsOf: sleepSamples)
 
         if let daylightSample = mockQuantitySample(for: .timeInDaylight, on: interval) {
             objects.append(daylightSample)
@@ -144,30 +156,6 @@ final class HealthKitManager: ObservableObject {
                 DispatchQueue.main.async { completion(value) }
             }
             healthStore.execute(query)
-        } else if let categoryType = metric.categoryType {
-            let predicate = HKQuery.predicateForSamples(withStart: interval.start, end: interval.end, options: [])
-            let query = HKSampleQuery(sampleType: categoryType, predicate: predicate, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
-                let asleepValues: Set<Int> = [
-                    HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
-                    HKCategoryValueSleepAnalysis.asleepCore.rawValue,
-                    HKCategoryValueSleepAnalysis.asleepDeep.rawValue,
-                    HKCategoryValueSleepAnalysis.asleepREM.rawValue
-                ]
-
-                let totalSeconds = samples?.compactMap { sample -> TimeInterval? in
-                    guard let categorySample = sample as? HKCategorySample else { return nil }
-                    guard asleepValues.contains(categorySample.value) else { return nil }
-
-                    let overlapStart = max(interval.start, categorySample.startDate)
-                    let overlapEnd = min(interval.end, categorySample.endDate)
-                    let duration = overlapEnd.timeIntervalSince(overlapStart)
-                    return duration > 0 ? duration : nil
-                }.reduce(0, +) ?? 0
-
-                let minutes = totalSeconds / 60
-                DispatchQueue.main.async { completion(minutes) }
-            }
-            healthStore.execute(query)
         } else {
             completion(nil)
         }
@@ -200,22 +188,159 @@ final class HealthKitManager: ObservableObject {
         return HKQuantitySample(type: quantityType, quantity: quantity, start: startDate, end: endDate, metadata: metadata)
     }
 
-    private func mockSleepSample(for interval: DateInterval) -> HKCategorySample? {
-        guard let sleepType = HealthMetric.sleep.categoryType else { return nil }
+    private func fetchSleepSummary(within interval: DateInterval, completion: @escaping (SleepSummary?) -> Void) {
+        guard let categoryType = HealthMetric.sleep.categoryType else {
+            DispatchQueue.main.async { completion(nil) }
+            return
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: interval.start, end: interval.end, options: [])
+        let sortDescriptor = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+        let query = HKSampleQuery(
+            sampleType: categoryType,
+            predicate: predicate,
+            limit: HKObjectQueryNoLimit,
+            sortDescriptors: [sortDescriptor]
+        ) { _, samples, _ in
+            guard let categorySamples = samples as? [HKCategorySample], !categorySamples.isEmpty else {
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
+
+            var segments: [SleepStageSegment] = []
+            var earliestStart: Date?
+            var latestEnd: Date?
+
+            for sample in categorySamples {
+                guard let stage = SleepStage(categoryValue: sample.value) else { continue }
+
+                let duration = sample.endDate.timeIntervalSince(sample.startDate)
+                guard duration > 0 else { continue }
+
+                earliestStart = min(earliestStart ?? sample.startDate, sample.startDate)
+                latestEnd = max(latestEnd ?? sample.endDate, sample.endDate)
+
+                let minutes = duration / 60
+                if let last = segments.last, last.stage == stage {
+                    segments[segments.count - 1] = SleepStageSegment(
+                        stage: stage,
+                        minutes: last.minutes + minutes
+                    )
+                } else {
+                    segments.append(SleepStageSegment(stage: stage, minutes: minutes))
+                }
+            }
+
+            guard let start = earliestStart, let end = latestEnd, !segments.isEmpty else {
+                DispatchQueue.main.async { completion(nil) }
+                return
+            }
+
+            let summary = SleepSummary(segments: segments, startDate: start, endDate: end)
+            DispatchQueue.main.async { completion(summary) }
+        }
+
+        healthStore.execute(query)
+    }
+
+    private func mockSleepSamples(for interval: DateInterval) -> [HKCategorySample] {
+        guard let sleepType = HealthMetric.sleep.categoryType else { return [] }
 
         let hours = Double.random(in: HealthMetric.sleep.mockRange)
-        let duration = hours * 60 * 60
-        let startDate = interval.start.addingTimeInterval(-TimeInterval.random(in: 3_600.0...7_200.0))
-        let endDate = startDate.addingTimeInterval(duration)
+        let totalMinutes = hours * 60
+        let startOffset = TimeInterval.random(in: -12_600.0 ... -7_200.0)
+        let startDate = interval.start.addingTimeInterval(startOffset)
         let metadata = [HKMetadataKeyWasUserEntered: true]
 
-        return HKCategorySample(
-            type: sleepType,
-            value: HKCategoryValueSleepAnalysis.asleepCore.rawValue,
-            start: startDate,
-            end: endDate,
-            metadata: metadata
-        )
+        let segments = mergeAdjacentSegments(makeSleepSegments(totalMinutes: totalMinutes))
+        guard !segments.isEmpty else { return [] }
+
+        var samples: [HKCategorySample] = []
+        var currentStart = startDate
+
+        for segment in segments {
+            let endDate = currentStart.addingTimeInterval(segment.minutes * 60)
+            let sample = HKCategorySample(
+                type: sleepType,
+                value: segment.stage.healthKitValue,
+                start: currentStart,
+                end: endDate,
+                metadata: metadata
+            )
+            samples.append(sample)
+            currentStart = endDate
+        }
+
+        return samples
+    }
+
+    private func makeSleepSegments(totalMinutes: Double) -> [SleepStageSegment] {
+        let cycleCount = max(3, min(5, Int((totalMinutes / 90.0).rounded())))
+        let cycleMinutes = totalMinutes / Double(cycleCount)
+        var segments: [SleepStageSegment] = []
+
+        for index in 0..<cycleCount {
+            let progress = Double(index) / Double(max(cycleCount - 1, 1))
+            let deepShare = max(0.1, 0.24 - (0.1 * progress))
+            let remShare = min(0.3, 0.12 + (0.12 * progress))
+            let awakeShare = 0.03
+
+            var deepMinutes = cycleMinutes * deepShare * Double.random(in: 0.85...1.1)
+            var remMinutes = cycleMinutes * remShare * Double.random(in: 0.9...1.15)
+            var awakeMinutes = cycleMinutes * awakeShare * Double.random(in: 0.6...1.3)
+
+            deepMinutes = max(6, deepMinutes)
+            remMinutes = max(6, remMinutes)
+            awakeMinutes = max(2, awakeMinutes)
+
+            var coreMinutes = cycleMinutes - deepMinutes - remMinutes - awakeMinutes
+            if coreMinutes < 12 {
+                coreMinutes = 12
+                let overflow = (deepMinutes + remMinutes + awakeMinutes + coreMinutes) - cycleMinutes
+                if overflow > 0 {
+                    let adjustable = deepMinutes + remMinutes
+                    if adjustable > 0 {
+                        deepMinutes -= overflow * (deepMinutes / adjustable)
+                        remMinutes -= overflow * (remMinutes / adjustable)
+                    } else {
+                        awakeMinutes = max(1, awakeMinutes - overflow)
+                    }
+                }
+            }
+
+            let coreFirst = coreMinutes * 0.45
+            let coreSecond = coreMinutes - coreFirst
+
+            segments.append(SleepStageSegment(stage: .core, minutes: coreFirst))
+            segments.append(SleepStageSegment(stage: .deep, minutes: deepMinutes))
+            segments.append(SleepStageSegment(stage: .core, minutes: coreSecond))
+            segments.append(SleepStageSegment(stage: .rem, minutes: remMinutes))
+
+            if index < cycleCount - 1 || Bool.random() {
+                segments.append(SleepStageSegment(stage: .awake, minutes: awakeMinutes))
+            }
+        }
+
+        segments.append(SleepStageSegment(stage: .awake, minutes: Double.random(in: 4...12)))
+
+        let total = segments.reduce(0) { $0 + $1.minutes }
+        let scale = totalMinutes / max(total, 1)
+        return segments.map { SleepStageSegment(stage: $0.stage, minutes: $0.minutes * scale) }
+    }
+
+    private func mergeAdjacentSegments(_ segments: [SleepStageSegment]) -> [SleepStageSegment] {
+        var merged: [SleepStageSegment] = []
+        for segment in segments {
+            if let last = merged.last, last.stage == segment.stage {
+                merged[merged.count - 1] = SleepStageSegment(
+                    stage: segment.stage,
+                    minutes: last.minutes + segment.minutes
+                )
+            } else {
+                merged.append(segment)
+            }
+        }
+        return merged
     }
 
     private func dayInterval(for date: Date) -> DateInterval {

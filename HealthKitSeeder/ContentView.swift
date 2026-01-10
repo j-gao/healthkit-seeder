@@ -9,7 +9,7 @@ struct ContentView: View {
         NavigationStack {
             ZStack {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 12) {
                         datePickerSection
 
                         if healthKitManager.authorizationState != .authorized {
@@ -88,19 +88,6 @@ struct ContentView: View {
                     .zIndex(1)
                 }
             }
-            .navigationTitle("HealthKit Seeder")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if healthKitManager.isAuthorized && !healthKitManager.isLoading {
-                        Button {
-                            healthKitManager.refreshMetrics(for: healthKitManager.selectedDate)
-                        } label: {
-                            Image(systemName: "arrow.clockwise.circle")
-                        }
-                        .accessibilityLabel("Refresh data")
-                    }
-                }
-            }
             .onAppear {
                 if healthKitManager.authorizationState == .unknown {
                     healthKitManager.requestAuthorization()
@@ -113,44 +100,49 @@ struct ContentView: View {
     }
 
     private var datePickerSection: some View {
-        Button {
-            isShowingDatePicker = true
-        } label: {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Selected day")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        HStack(spacing: 12) {
+            Button {
+                isShowingDatePicker = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "calendar")
+                        .font(.subheadline)
                     Text(selectedDateLabel)
-                        .font(.headline)
+                        .font(.subheadline.weight(.semibold))
                 }
-                Spacer()
-                Image(systemName: "calendar")
-                    .font(.title3)
-                    .foregroundStyle(.primary)
+                .foregroundStyle(.primary)
+                .padding(.vertical, 6)
+                .padding(.horizontal, 10)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color(.secondarySystemBackground))
+                )
             }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
-            )
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            if healthKitManager.isAuthorized {
+                Button {
+                    healthKitManager.refreshMetrics(for: healthKitManager.selectedDate)
+                } label: {
+                    if healthKitManager.isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(healthKitManager.isLoading)
+                .accessibilityLabel("Refresh data")
+            }
         }
-        .buttonStyle(.plain)
     }
 
     private var metricsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(selectedDateLabel)
-                    .font(.headline)
-                Spacer()
-                if healthKitManager.isLoading {
-                    ProgressView()
-                }
-            }
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
                 ForEach(healthKitManager.readings) { reading in
                     MetricChip(reading: reading)
                 }

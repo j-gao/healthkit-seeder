@@ -5,20 +5,20 @@ struct MetricChip: View {
     let reading: HealthMetricReading
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             Label(reading.type.title, systemImage: reading.type.systemImage)
-                .font(.subheadline)
+                .font(.caption)
                 .foregroundStyle(.primary)
             Text(reading.displayText)
-                .font(.title2.weight(.semibold))
+                .font(.headline.weight(.semibold))
             Text(labelSuffix)
-                .font(.footnote)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
         }
-        .padding()
+        .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color(.secondarySystemBackground))
         )
     }

@@ -67,7 +67,7 @@ struct ContentView: View {
                             displayedComponents: .date
                         )
                         .datePickerStyle(.graphical)
-                        .onChange(of: healthKitManager.selectedDate) { newValue in
+                        .onChange(of: healthKitManager.selectedDate) { _, newValue in
                             if healthKitManager.isAuthorized {
                                 healthKitManager.refreshMetrics(for: newValue)
                             }

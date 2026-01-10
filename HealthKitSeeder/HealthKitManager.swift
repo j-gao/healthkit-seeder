@@ -30,7 +30,7 @@ final class HealthKitManager: ObservableObject {
         }
 
         let shareTypes = Set(HealthMetric.allCases.compactMap { $0.shareType })
-        let readTypes = Set(HealthMetric.allCases.compactMap { $0.shareType as? HKObjectType })
+        let readTypes = Set(HealthMetric.allCases.compactMap { $0.shareType as HKObjectType? })
 
         healthStore.requestAuthorization(toShare: shareTypes, read: readTypes) { [weak self] success, error in
             DispatchQueue.main.async {
@@ -248,7 +248,7 @@ final class HealthKitManager: ObservableObject {
 
         let hours = Double.random(in: HealthMetric.sleep.mockRange)
         let totalMinutes = hours * 60
-        let startOffset = TimeInterval.random(in: -12_600.0 ... -7_200.0)
+        let startOffset = TimeInterval.random(in: (-12_600.0)...(-7_200.0))
         let startDate = interval.start.addingTimeInterval(startOffset)
         let metadata = [HKMetadataKeyWasUserEntered: true]
 

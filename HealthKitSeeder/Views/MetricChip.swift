@@ -153,6 +153,8 @@ private struct SleepStageStyle {
             return Color(red: 0.18, green: 0.72, blue: 0.69)
         case .awake:
             return Color(red: 0.95, green: 0.62, blue: 0.30)
+        case .inBed:
+            return Color(red: 0.60, green: 0.60, blue: 0.60)
         }
     }
 }
@@ -186,20 +188,32 @@ private struct SleepStageBar: View {
 private struct SleepStageLegend: View {
     let summary: SleepSummary
 
-    var body: some View {
+    private var displayStages: [(stage: SleepStage, minutes: Double, percent: Int)] {
         let totals = summary.stageTotals
-        let totalMinutes = max(summary.totalMinutes, 1)
-        let stages = SleepStage.legendOrder.filter { (totals[$0] ?? 0) > 0 }
+        let asleepMinutes = max(summary.asleepMinutes, 1)
+        
+        return SleepStage.legendOrder.compactMap { stage in
+            let minutes = totals[stage] ?? 0
+            guard minutes > 0 else { return nil }
+            
+            let percent: Int
+            if stage == .awake {
+                percent = Int(summary.awakePercent.rounded())
+            } else {
+                percent = Int((minutes / asleepMinutes * 100).rounded())
+            }
+            return (stage, minutes, percent)
+        }
+    }
 
+    var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-            ForEach(stages) { stage in
-                let minutes = totals[stage, default: 0]
-                let percent = Int((minutes / totalMinutes * 100).rounded())
+            ForEach(displayStages, id: \.stage) { item in
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(SleepStageStyle.color(for: stage))
+                        .fill(SleepStageStyle.color(for: item.stage))
                         .frame(width: 10, height: 10)
-                    Text("\(stage.title) \(formatMinutes(minutes)) | \(percent)%")
+                    Text("\(item.stage.title) \(formatMinutes(item.minutes)) | \(item.percent)%")
                         .font(.custom("Avenir Next", size: 11, relativeTo: .caption2))
                         .fontWeight(.semibold)
                         .foregroundStyle(.primary)

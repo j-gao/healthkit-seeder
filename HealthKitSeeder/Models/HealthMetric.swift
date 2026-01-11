@@ -167,6 +167,7 @@ enum HealthMetric: String, CaseIterable, Identifiable {
 
 @available(iOS 17.0, *)
 enum SleepStage: String, CaseIterable, Identifiable {
+    case inBed
     case awake
     case rem
     case core
@@ -176,6 +177,7 @@ enum SleepStage: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .inBed: return "In Bed"
         case .awake: return "Awake"
         case .rem: return "REM"
         case .core: return "Core"
@@ -184,11 +186,18 @@ enum SleepStage: String, CaseIterable, Identifiable {
     }
 
     var isAsleep: Bool {
-        self != .awake
+        switch self {
+        case .core, .deep, .rem:
+            return true
+        case .inBed, .awake:
+            return false
+        }
     }
 
     var healthKitValue: Int {
         switch self {
+        case .inBed:
+            return HKCategoryValueSleepAnalysis.inBed.rawValue
         case .awake:
             return HKCategoryValueSleepAnalysis.awake.rawValue
         case .rem:
@@ -202,8 +211,9 @@ enum SleepStage: String, CaseIterable, Identifiable {
 
     init?(categoryValue: Int) {
         switch categoryValue {
-        case HKCategoryValueSleepAnalysis.awake.rawValue,
-             HKCategoryValueSleepAnalysis.inBed.rawValue:
+        case HKCategoryValueSleepAnalysis.inBed.rawValue:
+            self = .inBed
+        case HKCategoryValueSleepAnalysis.awake.rawValue:
             self = .awake
         case HKCategoryValueSleepAnalysis.asleepREM.rawValue:
             self = .rem
@@ -251,6 +261,43 @@ struct SleepSummary {
         stageTotals.reduce(0) { partial, entry in
             entry.key.isAsleep ? partial + entry.value : partial
         }
+    }
+
+    var awakeMinutes: Double {
+        stageTotals[.awake, default: 0]
+    }
+
+    var deepSleepMinutes: Double {
+        stageTotals[.deep, default: 0]
+    }
+
+    var remSleepMinutes: Double {
+        stageTotals[.rem, default: 0]
+    }
+
+    var coreSleepMinutes: Double {
+        stageTotals[.core, default: 0]
+    }
+
+    /// Deep sleep as percentage of total sleep time (not total time in bed)
+    var deepSleepPercent: Double {
+        asleepMinutes > 0 ? (deepSleepMinutes / asleepMinutes) * 100 : 0
+    }
+
+    /// REM sleep as percentage of total sleep time
+    var remSleepPercent: Double {
+        asleepMinutes > 0 ? (remSleepMinutes / asleepMinutes) * 100 : 0
+    }
+
+    /// Core sleep as percentage of total sleep time
+    var coreSleepPercent: Double {
+        asleepMinutes > 0 ? (coreSleepMinutes / asleepMinutes) * 100 : 0
+    }
+
+    /// Awake time as percentage of total time in bed (sleep + awake)
+    var awakePercent: Double {
+        let totalTimeInBed = asleepMinutes + awakeMinutes
+        return totalTimeInBed > 0 ? (awakeMinutes / totalTimeInBed) * 100 : 0
     }
 }
 

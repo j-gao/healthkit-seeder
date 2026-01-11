@@ -35,21 +35,42 @@ struct MetricChip: View {
 
     private var standardChip: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(reading.type.title, systemImage: reading.type.systemImage)
-                .font(.caption)
-                .foregroundStyle(.primary)
+            chipHeader(title: reading.type.title, systemImage: reading.type.systemImage)
             Text(reading.displayText)
-                .font(.headline.weight(.semibold))
+                .font(.custom("Avenir Next", size: 18, relativeTo: .headline))
+                .fontWeight(.semibold)
             Text(labelSuffix)
-                .font(.caption2)
+                .font(.custom("Avenir Next", size: 11, relativeTo: .caption2))
                 .foregroundStyle(.secondary)
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(ChipPalette.cardStroke, lineWidth: 0.6)
+                )
         )
+        .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)
+    }
+
+    private func chipHeader(title: String, systemImage: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(ChipPalette.accent)
+                .padding(6)
+                .background(
+                    Circle()
+                        .fill(ChipPalette.iconBackground)
+                )
+            Text(title)
+                .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+        }
     }
 }
 
@@ -59,29 +80,50 @@ private struct SleepMetricChip: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label(reading.type.title, systemImage: reading.type.systemImage)
-                .font(.caption)
-                .foregroundStyle(.primary)
+            chipHeader(title: reading.type.title, systemImage: reading.type.systemImage)
             Text(reading.displayText)
-                .font(.headline.weight(.semibold))
+                .font(.custom("Avenir Next", size: 18, relativeTo: .headline))
+                .fontWeight(.semibold)
             Text(timeRangeLabel)
-                .font(.caption2)
+                .font(.custom("Avenir Next", size: 11, relativeTo: .caption2))
                 .foregroundStyle(.secondary)
             SleepStageBar(segments: reading.sleepSummary?.segments ?? [])
             if let summary = reading.sleepSummary {
                 SleepStageLegend(summary: summary)
             } else {
                 Text("No sleep stages recorded")
-                    .font(.caption2)
+                    .font(.custom("Avenir Next", size: 11, relativeTo: .caption2))
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(ChipPalette.cardStroke, lineWidth: 0.6)
+                )
         )
+        .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)
+    }
+
+    private func chipHeader(title: String, systemImage: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(ChipPalette.accent)
+                .padding(6)
+                .background(
+                    Circle()
+                        .fill(ChipPalette.iconBackground)
+                )
+            Text(title)
+                .font(.custom("Avenir Next", size: 12, relativeTo: .caption))
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+        }
     }
 
     private var timeRangeLabel: String {
@@ -133,6 +175,10 @@ private struct SleepStageBar: View {
         .frame(height: 12)
         .background(Color(.tertiarySystemFill))
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color.white.opacity(0.35), lineWidth: 0.5)
+        )
     }
 }
 
@@ -154,7 +200,8 @@ private struct SleepStageLegend: View {
                         .fill(SleepStageStyle.color(for: stage))
                         .frame(width: 10, height: 10)
                     Text("\(stage.title) \(formatMinutes(minutes)) | \(percent)%")
-                        .font(.caption.weight(.semibold))
+                        .font(.custom("Avenir Next", size: 11, relativeTo: .caption2))
+                        .fontWeight(.semibold)
                         .foregroundStyle(.primary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -178,4 +225,11 @@ struct MetricChip_Previews: PreviewProvider {
     static var previews: some View {
         MetricChip(reading: .init(type: .steps, value: 8234))
     }
+}
+
+@available(iOS 17.0, *)
+private enum ChipPalette {
+    static let accent = Color(red: 0.16, green: 0.55, blue: 0.94)
+    static let iconBackground = Color(red: 0.16, green: 0.55, blue: 0.94).opacity(0.18)
+    static let cardStroke = Color.white.opacity(0.35)
 }

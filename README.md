@@ -1,7 +1,7 @@
 # healthkit-seeder
 An iOS utility app that generates and writes realistic mock HealthKit data into Apple Health to facilitate the testing of HealthKit-powered apps.
 
-![App screenshot](Assets/screenshot.png)
+<img src="Assets/screenshot.png" alt="App screenshot" width="360">
 
 ## What it does
 - Requests HealthKit read/write permissions for various data (sleep, time in daylight, steps, and walking/running distance, etc.).
